@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 
 import pandas as pd
+from django.db import IntegrityError
 from rest_framework import views
 from rest_framework.response import Response
 from rest_framework import status
@@ -15,7 +16,7 @@ class RawDataUploadView(views.APIView):
             df = pd.read_csv(file_path, encoding='utf-8')
             column_mapping = {
                 'Report Record Number': 'RecordNumber',
-                'Provider CCN': 'HospitalID',
+                'HospitalID': 'HospitalID',
                 'Hospital Name': 'HospitalName',
                 'Street Address': 'Address',
                 'City': 'City',
@@ -194,7 +195,7 @@ class FeedHospitalDataView(views.APIView):
                     print('else')
                     hospitals_data = {
                         "ReportRecord": raw_data.RecordNumber,
-                        "HospitalID": raw_data.CCN,
+                        "HospitalID": raw_data.HospitalID,
                         "HospitalName": raw_data.HospitalName,
                         "Address": raw_data.Address,
                         "City": raw_data.City,
@@ -220,36 +221,51 @@ class FeedHospitalDataView(views.APIView):
 
 class FeedHospitalExpensesView(views.APIView):
     def post(self, request):
-        try:
-            raw_data_list = RawData.objects.all()
 
-            for raw_data in raw_data_list:
-                if HospitalExpenses.objects.get(HospitalID=raw_data.CCN):
-                    print('if')
-                    pass
-                else:
-                    print('else')
-                    expense_data = {
-                        "HospitalID": raw_data.CCN,
-                        "HospitalName": raw_data.HospitalName,
-                        "CharityCost": raw_data.CharityCost,
-                        "BadDebtExpense": raw_data.BadDebtExpense,
-                        "UncompasatedCost": raw_data.UncompensatedCost,
-                        "TotalCost": raw_data.TotalCost,
-                        "WageRelatedCostsCore": raw_data.WageRelatedCostsCore,
-                        "WageRelatedCostsRHC": raw_data.WageRelatedCostsRHC,
-                        "SalariesPayable": raw_data.SalariesPayable,
-                        "ContractLabor": raw_data.ContractLabor,
-                        "WageCostsTeaching": raw_data.WageRelatedCostsTeaching,
-                        "WageRelatedCostInternResidents": raw_data.WageRelatedCostInternResidents,
-                        "DepreciationCost": raw_data.DepreciationCost
-                    }
+        raw_data_list = RawData.objects.all()
+        for raw_data in raw_data_list:
+            print("*****************")
+            print(raw_data.HospitalID)
+            print(Hospitals.objects.get(HospitalID=raw_data.HospitalID))
 
-                    HospitalExpenses.objects.create(**expense_data)
+            try:
+                HospitalIDInstance = Hospitals.objects.get(HospitalID=raw_data.HospitalID)
+                # print('here', HospitalIDInstance)
+                expense_data = {
+                    "HospitalID": HospitalIDInstance,
+                    "HospitalName": raw_data.HospitalName,
+                    "CharityCost": raw_data.CharityCost,
+                    "BadDebtExpense": raw_data.BadDebtExpense,
+                    "UncompasatedCost": raw_data.UncompensatedCost,
+                    "TotalCost": raw_data.TotalCost,
+                    "WageRelatedCostsCore": raw_data.WageRelatedCostsCore,
+                    "WageRelatedCostsRHC": raw_data.WageRelatedCostsRHC,
+                    "SalariesPayable": raw_data.SalariesPayable,
+                    "ContractLabor": raw_data.ContractLabor,
+                    "WageRelatedCostsTeaching": raw_data.WageRelatedCostsTeaching,
+                    "WageRelatedCostInternResidents": raw_data.WageRelatedCostInternResidents,
+                    "DepreciationCost": raw_data.DepreciationCost
+                }
 
-            return Response({"message": "Data processed and saved to Hospitals Expenses Model"}, status=status.HTTP_201_CREATED)
+                HospitalExpenses.objects.create(**expense_data)
+                # print("saved")
+            except IntegrityError:
+                print('hereeee', HospitalExpenses.objects.get(HospitalID=HospitalIDInstance))
+                print("Integrity Error")
+            # except Exception as e:
+            #     print(e)
+        return Response({"message": "Data processed and saved to Hospitals Expenses Model"}, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class GetExpense(views.APIView):
+    def post(self, request):
+        print(request.data.get('HospitalID'), type(request.data.get('HospitalID')))
+        if Hospitals.objects.filter(HospitalID=request.data.get('HospitalID')):
+            print("Hospital found")
+            if HospitalExpenses.objects.filter(HospitalID=request.data.get('HospitalID')):
+                print("exprnses found")
+                print(HospitalExpenses.objects.filter(HospitalID=request.data.get('HospitalID')))
+                return Response({"message": "Available"}, status=status.HTTP_200_OK)
+            return Response({"message": "Hospital expense not found"}, status=status.HTTP_200_OK)
+        return Response({"message": "hospital not found"}, status=status.HTTP_200_OK)

@@ -155,7 +155,7 @@ class Hospitals(models.Model):
 
 
     def __str__(self):
-        return self.hospital_name
+        return self.HospitalName
 
     class Meta:
         verbose_name_plural = "Hospitals"
